@@ -1,0 +1,170 @@
+mongo db es una base de datos y una alternativa a mysql
+al contrario de mysql aqui no hay tablas si no que hay colecciones y documentos
+una vez ya intalado el mongodb atlas que es la BASE DE DATOS ya podemos iniciar nuestro proyecto en visual
+para poder tranajar en esta base de datos tenemos que usar mongoose y para ello en la terminal de visual instalamos las dependencias:
+$ npm init -y (nos crea la carpeta package.json)
+$ npm install express mongoose
+entonces te crea las carpetas package-lock.json y node_modules. Hacemos .gitignore y metemos dentro node_modules para ocultarla(contiene informacion sensible)
+
+creamos la carpeta config y el archivo keys.js,dentro de keys.js pegamos nuestra mongo uri que tengo en un txt: module.exports = {
+    MONGO_URI : 'mongodb+srv://luisturismo91:B0iHa0BAFOhtwnxz@cluster0.yymei.mongodb.net/repaso-clase-mongo-db-mongoose' //siempre tiene que estar con -
+}
+cntrlc + contrlv en keys.js y lo duplicamos para llamarlo key.example.js y ponemos ahi dentro: module.exports = {
+    MONGO_URI: 'tu mongo uri'
+}
+luego ocultamos en el git.ignore el archivo keys.js con nuestra mongo uri(nuestra base de datos)
+creamos config.js en la carpeta de config y dentro de esta pegamos este código que nos conectara nuestra base de datos:
+
+const mongoose = require("mongoose");
+
+const { MONGO_URI } = require("./keys");
+
+const dbConnection = async () => {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("Base de datos conectada con éxito");
+  } catch (error) {
+    console.error(error);
+    throw new Error("Error a la hora de iniciar la base de datos");
+  }
+};
+
+module.exports = {
+  dbConnection,
+};
+
+luego creamos index.js y nos importamos nuestra conexion de base de datos "dbconnection" del config.js
+en el archivo config.js pregamos este codigo:
+
+const express = require("express");
+const app = express();
+const PORT = 8080;
+const { dbConnection } = require("./config/config")
+
+app.use(express.json()) // no entiendo muy bien lo de json y por que si no lo pones sale el body undefined
+
+dbConnection()
+
+app.listen(PORT, ()=> console.log(`Server started on port ${PORT}`));
+
+una ves hecho esto ya podemos levantar el servido node --watch index.js
+
+ahora creamos la carpeta models y dentro el archivo Product.js primera en mayuscula y en singular
+en product.js primero importamos mongoose : const mongoose = require('mongoose');
+segundo creamos un esquema de nuestro producto en este caso con los valores nombre y precio:const ProductSchema = new mongoose.Schema({
+    name: String,
+    price: Number,
+    }, { timestamps: true });ç
+    despues ya creamos el modelo : 
+    const Product = mongoose.model('Product', ProductSchema);
+    por ultimo ya en modelos creamos el codigo para poder exportarnos el modelo: module.exports = Product;
+
+luego creamos la carpeta controller y dentro el archivo ProductController 
+lo primero que hacemos en ProductController es importarnos el modelo: const Product = require("../models/Product");
+segundo creamos el controlador pero antes creamos el codigo para poder exportarnos los controladores: module.exports = ProductController
+tercero creamos el controlladro arriba del module exports :
+const ProductController ={
+    async create(req,res){  //create para crear un product  //las funciones dentro de un objeto se llaman métodos
+        try { //ponemos el try y el catch para recoger los errores 
+            const product = await Product.create(req.body)  // ahora llamamos al modelo que me he importado y como quiero crear lo que pasamos por el body en el postman pues ponemos (req.body)
+            res.status(201).send(product) //ahora damos la respuesta con res.status y 201 si se ha creado bien
+        } catch (error) {
+            console.error(error)
+            res.status(500).send({ message: 'Ha habido un problema al crear el producto' }) // y status 500 si no se ha creado correctamente
+        }
+    },
+}
+
+Una vez hecha toda la logica para crear un producto en postman ya podemos crear nuestras rutas:
+creamos una carpeta llamada routes y dentro un archivo con este nombre: Products.js //la primera en mayscula y en plural
+lo primero que hacemos en Products.js es importarnos express
+lo segundo es poner este código : const router = express.Router() // que sirve para
+tercero creamos el endpoint : router.post("/create",ProductController.create) //aqui van todos los endpoints
+por ultimo y debajo de todos los empoints va la linea de codigo donde nos exportamos las rutas: module.exports = router; nos la importamos en index.js y debajo de app use para que parsee el body
+entonces en index.js y debajo de app use json nos importamos la ruta: app.use ("/products",require("./routes/Products)) PARA IMPORTARNOS ALGO USAMOS require
+
+el siguiente paso es crear el producto en postman:
+entonces en postman pondriamos post por que queremos crear luego: localhost:8080/product/create
+luego te vas a body, raw, json
+por ultimo en el body abres llaves y crear el producto: 
+{
+    "name" : "ps5"
+    "price" : 500
+}
+y le damos a send y ya se crea
+
+luego para ver el producto creado te tienes que ir al navegador y al mongo atlas, cluster, browse collection, y buscamos nuestra base de datos por el nombre
+
+ con todo lo anterior ya podemos crear nustros metodos o lo que es lo mismo, endpoints:
+
+ el get all para traerte todos los productos seria:
+    
+    async getAll(req, res) {
+        try {
+           const products = await Product.find() // en mongoose es .fin y en sequalize es .findAll
+           res.send(products)
+        } catch (error) {
+            console.error(error);
+        }
+    },
+
+ el findById seria asi:
+
+  async getById(req, res) {
+        try {
+            const product = await Product.findById(req.params._id) //aqui estoy llamando al modelo entonces como buscamos 1 id es product en singular y luego le pasamos req.params._id por que vas a buscarlo con el id del producto en el buscardor de postman (params)
+            res.send(product)
+        } catch (error) {
+            console.error(error);
+        }
+    }
+el postman de getById seria: localhost:8080/products/id/67538dd44c7944ddbde16265 //lo ultimo es el id del producto que lo sacas del atlas
+
+el siguiente endpoint findByName se hace de esta manera:
+
+ async getProductsByName(req, res) {
+        try { 
+            if (req.params.name.length>20){
+              return res.status(400).send('Búsqueda demasiado larga')  //este if se pone para que no puedan escribir mas de x palabras en el buscador
+            }
+          const name = new RegExp(req.params.name, "i");  //se lo vamos a pasar por parametros en el postman
+          const products = await Product.find({name});
+          res.send(products);
+        } catch (error) {
+          console.log(error);
+        }
+      },
+
+el siguiente endpoint es el delete:
+
+async delete(req, res) {
+        try {
+            const product = await Product.findByIdAndDelete(req.params._id) //le tengo que pasar por parametro el id del producto que quiero eliminar
+            res.send({ message: 'Product deleted', product })
+        } catch (error) {
+            console.error(error)
+            res.status(500).send({ message: 'there was a problem trying to remove the product'})
+        }
+}
+
+por ultimo de endpoint update: 
+
+async update(req, res) {
+        try {
+          const product = await Product.findByIdAndUpdate(req.params._id, req.body, //paso por parametro el id del producto a actualizar, y luego el req.body por que en el body del postman voy a escribir nueva informacion para actualizar el producto
+          { new: true }  // si no pongo new true no se vera reflejado el producto actualizado en el postman aunque si que saldria actualizado en el atlas
+          )
+          res.send({ message: "product successfully updated", product });
+        } catch (error) {
+          console.error(error);
+        }
+}
+
+luego en postman seria:
+localhost:8080/products/id/67545942a94d37b44d27b554 // nos vamos al atlas y copiamos el id del producto a modificar
+luego le pasas por el body lo que quieras cambiar como por ejemplo el campo price.
+
+  
+
+
+
